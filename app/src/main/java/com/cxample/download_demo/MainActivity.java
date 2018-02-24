@@ -6,7 +6,9 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.view.ContextMenu;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ProgressBar;
@@ -23,6 +25,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView mAddBtn;
     private RecyclerView mDownloadList;
     private DownloadAdapter mAdapter;
+
+    private int mSelectedPosition;
 
     private Handler mHandler = new Handler() {
         @Override
@@ -71,13 +75,62 @@ public class MainActivity extends AppCompatActivity {
         mHandler.sendEmptyMessageDelayed(1, 1000);
     }
 
-    private class DownloadViewHolder extends RecyclerView.ViewHolder {
+    private View.OnCreateContextMenuListener mItemClickListener = new View.OnCreateContextMenuListener() {
+        @Override
+        public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+            Object object = v.getTag();
+            if(object != null) {
+                mSelectedPosition = (int)object;
+                getMenuInflater().inflate(R.menu.download_item_click_menu, menu);
+            }
+        }
+    };
 
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        switch(item.getItemId()) {
+            case R.id.start: {
+                startDownload();
+                return true;
+            }
+            case R.id.pause: {
+                pauseDownload();
+                return true;
+            }
+            case R.id.delete: {
+                deleteDownload();
+                return true;
+            }
+        }
+        return super.onContextItemSelected(item);
+    }
+
+    private void startDownload() {
+        DownloadInfo downloadInfo = mAdapter.getItemData(mSelectedPosition);
+        if(downloadInfo != null && (downloadInfo.mTaskState == DownloadTask.TASK_STATE_PAUSE
+                || downloadInfo.mTaskState == DownloadTask.TASK_STATE_ERROR)) {
+            DownloadManager.addDownload(this, downloadInfo);
+        }
+    }
+
+    private void pauseDownload() {
+        DownloadInfo downloadInfo = mAdapter.getItemData(mSelectedPosition);
+        if(downloadInfo != null && downloadInfo.mTaskState == DownloadTask.TASK_STATE_RUNNING) {
+            DownloadManager.pauseDownload(this, downloadInfo);
+        }
+    }
+
+    private void deleteDownload() {
+        DownloadInfo downloadInfo = mAdapter.getItemData(mSelectedPosition);
+        if(downloadInfo != null) {
+            DownloadManager.deleteDownload(this, downloadInfo);
+        }
+    }
+
+    private class DownloadViewHolder extends RecyclerView.ViewHolder {
         public DownloadViewHolder(View itemView) {
             super(itemView);
         }
-
-
     }
 
     private class DownloadAdapter extends RecyclerView.Adapter<DownloadViewHolder> {
@@ -86,6 +139,13 @@ public class MainActivity extends AppCompatActivity {
         public void setDownloadInfos(List<DownloadInfo> downloadInfos) {
             mDownloadInfos = downloadInfos;
             notifyDataSetChanged();
+        }
+
+        public DownloadInfo getItemData(int position) {
+            if(mDownloadInfos != null && position >= 0 && position < mDownloadInfos.size()) {
+                return mDownloadInfos.get(position);
+            }
+            return null;
         }
 
         @Override
@@ -105,6 +165,15 @@ public class MainActivity extends AppCompatActivity {
             title.setText("任务：" + downloadInfo.mTaskId);
             progressBar.setProgress(progress);
             showDownloadState(hint, downloadInfo.mTaskState, progress);
+
+            holder.itemView.setTag(position);
+            holder.itemView.setOnCreateContextMenuListener(mItemClickListener);
+            holder.itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    v.showContextMenu();
+                }
+            });
         }
 
         @Override

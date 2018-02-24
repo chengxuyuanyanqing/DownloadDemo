@@ -49,6 +49,10 @@ public class DownloadTaskManager {
         DownloadTask task = sTaskList.remove(taskId);
         if(task != null) {
             task.delete();
+        } else {
+            DownloadInfo downloadInfo = new DownloadInfo();
+            downloadInfo.mTaskId = taskId;
+            DownloadManager.deleteDownloadInfo(context, downloadInfo);
         }
     }
 }

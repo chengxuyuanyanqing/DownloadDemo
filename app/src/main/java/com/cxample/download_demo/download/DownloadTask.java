@@ -68,15 +68,13 @@ public class DownloadTask implements Runnable {
     private void onError() {
         Log.e(TAG, "onError: error" + mTaskId);
         mTaskState = TASK_STATE_ERROR;
-        DownloadInfo downloadInfo = getDownloadInfo();
-        DownloadManager.updateDownloadInfo(mContext, downloadInfo);
+        DownloadManager.updateDownloadInfo(mContext, getDownloadInfo());
     }
 
     private void onEnd() {
-        DownloadInfo downloadInfo = getDownloadInfo();
         if(isDelete) {
             Log.e(TAG, "onEnd: delete" + mTaskId);
-            DownloadManager.deleteDownloadInfo(mContext, downloadInfo);
+            DownloadManager.deleteDownloadInfo(mContext, getDownloadInfo());
         } else {
             if(isPause) {
                 Log.e(TAG, "onEnd: pause" + mTaskId);
@@ -85,7 +83,7 @@ public class DownloadTask implements Runnable {
                 Log.e(TAG, "onEnd: finish" + mTaskId);
                 mTaskState = TASK_STATE_FINISH;
             }
-            DownloadManager.updateDownloadInfo(mContext, downloadInfo);
+            DownloadManager.updateDownloadInfo(mContext, getDownloadInfo());
         }
     }
 
