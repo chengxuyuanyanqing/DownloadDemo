@@ -25,6 +25,8 @@ public class DownloadTask implements Runnable {
     private boolean isPause;
     private boolean isDelete;
 
+    private boolean isFinish = false;
+
     private Context mContext;
 
     public DownloadTask(Context context, DownloadInfo downloadInfo) {
@@ -57,11 +59,20 @@ public class DownloadTask implements Runnable {
 
     @Override
     public void run() {
-        try {
-            download();
-            onEnd();
-        } catch(Exception e) {
-            onError();
+        int tryTime = 3;
+        while(true) {
+            try {
+                download();
+                onEnd();
+                break;
+            } catch(Exception e) {
+                if(tryTime > 0) {
+                    tryTime--;
+                } else {
+                    onError();
+                    break;
+                }
+            }
         }
     }
 

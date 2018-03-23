@@ -100,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         showDialog();
-                        for(int i = 0; i < 100; i++) {
+                        for(int i = 0; i < 10; i++) {
                             DownloadInfo downloadInfo = new DownloadInfo();
                             downloadInfo.mTaskId = ++DownloadManager.MAX_ID;
                             downloadInfo.mTaskTotalSize = 100;

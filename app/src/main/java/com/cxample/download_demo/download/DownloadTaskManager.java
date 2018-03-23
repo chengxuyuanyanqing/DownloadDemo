@@ -8,9 +8,7 @@ import com.cxample.download_demo.download.db.DownloadInfo;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
 
 /**
  * Created by yanqing on 2018/2/24.
@@ -23,12 +21,10 @@ public class DownloadTaskManager {
     private static final ExecutorService sExecutorService;
 
     private static ConcurrentHashMap<Integer, DownloadTask> sTaskList;
-    private static LinkedBlockingQueue<Runnable> sWaitingQueue;
 
     static {
         sTaskList = new ConcurrentHashMap<>();
-        sWaitingQueue = new LinkedBlockingQueue<>();
-        sExecutorService = new ThreadPoolExecutor(TASK_MAX_COUNT, TASK_MAX_COUNT, 0, TimeUnit.SECONDS, sWaitingQueue);
+        sExecutorService = Executors.newFixedThreadPool(TASK_MAX_COUNT);
     }
 
     public synchronized void startTask(Context context, int taskId) {
