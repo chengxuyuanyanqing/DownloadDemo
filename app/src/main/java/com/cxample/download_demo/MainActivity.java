@@ -1,5 +1,10 @@
 package com.cxample.download_demo;
 
+import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
@@ -7,13 +12,16 @@ import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.ContextMenu;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.cxample.download_demo.download.DownloadConstant;
 import com.cxample.download_demo.download.DownloadManager;
 import com.cxample.download_demo.download.DownloadTask;
 import com.cxample.download_demo.download.db.DownloadInfo;
@@ -28,18 +36,54 @@ public class MainActivity extends AppCompatActivity {
 
     private int mSelectedPosition;
 
+    private ProgressDialog mProgressDialog;
+
     private Handler mHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            getDownloadInfo();
+            if(msg.what == 1) {
+                getDownloadInfo();
+            } else if(msg.what == 2) {
+                if(mProgressDialog == null) {
+                    mProgressDialog = new ProgressDialog(MainActivity.this);
+                    mProgressDialog.setCancelable(false);
+                }
+                String message = String.valueOf(msg.obj);
+                mProgressDialog.setMessage(message);
+                if(!mProgressDialog.isShowing()) {
+                    mProgressDialog.show();
+                }
+            } else if(msg.what == 3) {
+                if(mProgressDialog != null && mProgressDialog.isShowing()) {
+                    mProgressDialog.cancel();
+                }
+            }
         }
     };
+
+    private BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if(DownloadConstant.DOWNLOAD_DELETE_COMPLETE.equals(action)) {
+                hideDialog();
+            }
+        }
+    };
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(mReceiver);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        registerReceiver(mReceiver,new IntentFilter(DownloadConstant.DOWNLOAD_DELETE_COMPLETE));
 
         mAddBtn = findViewById(R.id.add_download);
         mDownloadList = findViewById(R.id.download_list);
@@ -52,14 +96,80 @@ public class MainActivity extends AppCompatActivity {
         mAddBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                DownloadInfo downloadInfo = new DownloadInfo();
-                downloadInfo.mTaskId = ++DownloadManager.MAX_ID;
-                downloadInfo.mTaskTotalSize = 100;
-                downloadInfo.mTaskFinishSize = 0;
-                downloadInfo.mTaskState = DownloadTask.TASK_STATE_WAITING;
-                DownloadManager.addDownload(MainActivity.this, downloadInfo);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        showDialog();
+                        for(int i = 0; i < 100; i++) {
+                            DownloadInfo downloadInfo = new DownloadInfo();
+                            downloadInfo.mTaskId = ++DownloadManager.MAX_ID;
+                            downloadInfo.mTaskTotalSize = 100;
+                            downloadInfo.mTaskFinishSize = 0;
+                            downloadInfo.mTaskState = DownloadTask.TASK_STATE_WAITING;
+                            DownloadManager.addDownload(MainActivity.this, downloadInfo);
+                        }
+                        hideDialog();
+                    }
+                }).start();
             }
         });
+        findViewById(R.id.pause_all).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                List<DownloadInfo> infos = DownloadManager.getAllDownloadInfo();
+                ArrayList<Integer> ids = new ArrayList<>();
+                for(DownloadInfo info : infos) {
+                    if(info.mTaskState == DownloadTask.TASK_STATE_RUNNING
+                            || info.mTaskState == DownloadTask.TASK_STATE_WAITING) {
+                        ids.add(info.mTaskId);
+                    }
+                }
+                DownloadManager.pauseAllDownload(MainActivity.this, ids);
+            }
+        });
+
+        findViewById(R.id.start_all).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                List<DownloadInfo> infos = DownloadManager.getAllDownloadInfo();
+                ArrayList<Integer> ids = new ArrayList<>();
+                for(DownloadInfo info : infos) {
+                    if(info.mTaskState == DownloadTask.TASK_STATE_PAUSE
+                            || info.mTaskState == DownloadTask.TASK_STATE_ERROR) {
+                        ids.add(info.mTaskId);
+                    }
+                }
+                DownloadManager.startAllDownload(MainActivity.this, ids);
+            }
+        });
+
+        findViewById(R.id.delete_all).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDialog();
+                List<DownloadInfo> infos = DownloadManager.getAllDownloadInfo();
+                ArrayList<Integer> ids = new ArrayList<>();
+                for(DownloadInfo info : infos) {
+                    ids.add(info.mTaskId);
+                }
+                DownloadManager.deleteAllDownload(MainActivity.this, ids);
+            }
+        });
+    }
+
+    private void showDialog() {
+        Message message = Message.obtain();
+        message.what = 2;
+        message.obj = "添加下载";
+        mHandler.sendMessage(message);
+        mHandler.removeMessages(1);
+    }
+
+    private void hideDialog() {
+        Message message = Message.obtain();
+        message.what = 3;
+        mHandler.sendMessage(message);
+        mHandler.sendEmptyMessageDelayed(1, 1000);
     }
 
     @Override
@@ -205,5 +315,23 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+    }
+
+    private static final long MAX_TIME = 3000;
+    private long mCurrTime = 0;
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if(keyCode == KeyEvent.KEYCODE_BACK) {
+            long time = System.currentTimeMillis();
+            if(time - mCurrTime > MAX_TIME) {
+                Toast.makeText(this, "再次点击退出应用", Toast.LENGTH_SHORT).show();
+                mCurrTime = time;
+            } else {
+                DownloadApplication.exit();
+            }
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
     }
 }

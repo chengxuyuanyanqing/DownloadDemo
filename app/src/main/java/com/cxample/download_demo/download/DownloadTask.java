@@ -96,8 +96,12 @@ public class DownloadTask implements Runnable {
             } else {
                 if(mTaskFinishSize == mTaskTotalSize) {
                     break;
+                } else if(mTaskFinishSize > mTaskTotalSize) {
+                    onError();
+                    break;
                 } else {
                     //继续下载
+                    mTaskFinishSize++;
                     mTaskFinishSize++;
                     Thread.sleep(500);
 //                    Log.e(TAG, "download: " + mTaskId + ":" + mTaskFinishSize);

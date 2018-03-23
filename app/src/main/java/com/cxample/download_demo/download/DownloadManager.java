@@ -9,6 +9,7 @@ import com.cxample.download_demo.download.db.DownloadDatabase;
 import com.cxample.download_demo.download.db.DownloadInfo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -23,25 +24,49 @@ public class DownloadManager {
     private static List<DownloadInfo> sInfoList;
 
     public static void init(Context context) {
-        sInfoList = new ArrayList<>();
+        sInfoList = Collections.synchronizedList(new ArrayList<DownloadInfo>());
         DownloadDatabase database = DownloadDatabase.getInstance(context);
+        long time = System.currentTimeMillis();
         sInfoList = database.downloadDao().getAll();
+        long endTime = System.currentTimeMillis();
+        Log.e(TAG, "init db :" + (endTime - time) + " ms");
+        initDownloadStatus(context);
         //方便生成新的下载Id（测试用）
+        long time1 = System.currentTimeMillis();
         for(DownloadInfo info : sInfoList) {
             if(info.mTaskId > MAX_ID) {
                 MAX_ID = info.mTaskId;
             }
         }
+
+        long endTime1 = System.currentTimeMillis();
+        Log.e(TAG, "init maxId :" + ((endTime1 - time1)) + " ms");
         Log.e(TAG, "init: " + sInfoList.size());
     }
 
-    public static void release(){
-        //退出应用时对任务做处理
+    private static void initDownloadStatus(final Context context) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                long time = System.currentTimeMillis();
+                ArrayList<Integer> ids = new ArrayList<>();
+                for(DownloadInfo info : sInfoList) {
+                    if(info.mTaskState == DownloadTask.TASK_STATE_RUNNING
+                            || info.mTaskState == DownloadTask.TASK_STATE_WAITING) {
+                        ids.add(info.mTaskId);
+                    }
+                }
+                startAllDownload(context, ids);
+                long endTime = System.currentTimeMillis();
+                Log.e(TAG, "run: init time :" + ((endTime - time)) + " s");
+            }
+        }).start();
     }
 
-    public static void addDownloadInfo(DownloadInfo downloadInfo) {
+    public static void addDownloadInfo(Context context, DownloadInfo downloadInfo) {
         if(downloadInfo != null) {
             sInfoList.add(downloadInfo);
+            updateDownloadInfoByDB(context, downloadInfo);
         }
     }
 
@@ -86,7 +111,8 @@ public class DownloadManager {
     }
 
     public static DownloadInfo getDownloadInfo(int id) {
-        for(DownloadInfo info : sInfoList) {
+        for(int i = sInfoList.size() - 1; i >= 0; i--) {
+            DownloadInfo info = sInfoList.get(i);
             if(info.mTaskId == id) {
                 return info;
             }
@@ -98,9 +124,29 @@ public class DownloadManager {
         return sInfoList;
     }
 
+    public static List<DownloadInfo> getAllRunningAndWaitingDownload() {
+        List<DownloadInfo> infos = new ArrayList<>();
+        for(DownloadInfo info : sInfoList) {
+            if(info.mTaskState == DownloadTask.TASK_STATE_RUNNING || info.mTaskState == DownloadTask.TASK_STATE_WAITING) {
+                infos.add(info);
+            }
+        }
+        return infos;
+    }
+
+    public static List<DownloadInfo> getAllPauseAndErrorDownload() {
+        List<DownloadInfo> infos = new ArrayList<>();
+        for(DownloadInfo info : sInfoList) {
+            if(info.mTaskState == DownloadTask.TASK_STATE_PAUSE || info.mTaskState == DownloadTask.TASK_STATE_ERROR) {
+                infos.add(info);
+            }
+        }
+        return infos;
+    }
+
     public static void addDownload(Context context, DownloadInfo downloadInfo) {
         if(!checkIsExist(downloadInfo.mTaskId)) {
-            sInfoList.add(downloadInfo);
+            addDownloadInfo(context, downloadInfo);
         }
         startDownloadService(context, DownloadConstant.ACTION_START, downloadInfo.mTaskId);
     }
@@ -117,10 +163,37 @@ public class DownloadManager {
         }
     }
 
-    private static void startDownloadService(Context context, String action, int id) {
+    public static void pauseAllDownload(Context context, ArrayList<Integer> ids) {
+        if(ids == null || ids.size() <= 0) return;
+        startDownloadService(context, DownloadConstant.ACTION_PAUSE_ALL, toIntArray(ids));
+    }
+
+    public static void pauseAllDownload(Context context, int... ids) {
+        startDownloadService(context, DownloadConstant.ACTION_PAUSE_ALL, ids);
+    }
+
+    public static void startAllDownload(Context context, ArrayList<Integer> ids) {
+        if(ids == null || ids.size() <= 0) return;
+        startDownloadService(context, DownloadConstant.ACTION_START_ALL, toIntArray(ids));
+    }
+
+    public static void startAllDownload(Context context, int... ids) {
+        startDownloadService(context, DownloadConstant.ACTION_START_ALL, ids);
+    }
+
+    public static void deleteAllDownload(Context context, ArrayList<Integer> ids) {
+        if(ids == null || ids.size() <= 0) return;
+        startDownloadService(context, DownloadConstant.ACTION_DELETE_ALL, toIntArray(ids));
+    }
+
+    public static void deleteAllDownload(Context context, int... ids) {
+        startDownloadService(context, DownloadConstant.ACTION_DELETE_ALL, ids);
+    }
+
+    private static void startDownloadService(Context context, String action, int... ids) {
         Intent intent = new Intent(context, DownloadService.class);
         intent.setAction(action);
-        intent.putExtra(DownloadConstant.DOWNLOAD_ID, id);
+        intent.putExtra(DownloadConstant.DOWNLOAD_IDS, ids);
         context.startService(intent);
     }
 
@@ -131,5 +204,16 @@ public class DownloadManager {
             }
         }
         return false;
+    }
+
+    private static int[] toIntArray(ArrayList<Integer> arrayList) {
+        if(arrayList == null || arrayList.size() == 0) {
+            return null;
+        }
+        int[] ints = new int[arrayList.size()];
+        for(int i = 0; i < arrayList.size(); i++) {
+            ints[i] = arrayList.get(i);
+        }
+        return ints;
     }
 }

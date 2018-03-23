@@ -1,6 +1,7 @@
 package com.cxample.download_demo;
 
 import android.app.Application;
+import android.content.Context;
 
 import com.cxample.download_demo.download.DownloadManager;
 
@@ -20,7 +21,6 @@ public class DownloadApplication extends Application {
     }
 
     public static void exit() {
-        DownloadManager.release();
         int pid = android.os.Process.myPid();    //获取当前应用程序的PID
         android.os.Process.killProcess(pid);    //杀死当前进程
     }

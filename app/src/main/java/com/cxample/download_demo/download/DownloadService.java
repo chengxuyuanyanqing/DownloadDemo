@@ -12,6 +12,8 @@ import android.util.Log;
 public class DownloadService extends IntentService {
     private static final String TAG = "DownloadService";
 
+    private DownloadTaskManager mTaskManager;
+
     public DownloadService() {
         super("DownloadService");
     }
@@ -20,28 +22,40 @@ public class DownloadService extends IntentService {
     @Override
     protected void onHandleIntent(@Nullable Intent intent) {
         if(intent == null || intent.getAction() == null) return;
+        if(mTaskManager == null) {
+            mTaskManager = new DownloadTaskManager();
+        }
         String action = intent.getAction();
-        int downloadId = intent.getIntExtra(DownloadConstant.DOWNLOAD_ID, -1);
+        int[] downloadIds = intent.getIntArrayExtra(DownloadConstant.DOWNLOAD_IDS);
         switch(action) {
             case DownloadConstant.ACTION_START: {
-                Log.e(TAG, "onHandleIntent: start" + downloadId);
-                if(downloadId != -1) {
-                    DownloadTaskManager.startTask(getApplicationContext(), downloadId);
+                if(downloadIds != null && downloadIds.length > 0) {
+                    mTaskManager.startTask(getApplicationContext(), downloadIds[0]);
                 }
                 break;
             }
             case DownloadConstant.ACTION_PAUSE: {
-                Log.e(TAG, "onHandleIntent: pause" + downloadId);
-                if(downloadId != -1) {
-                    DownloadTaskManager.pauseTask(getApplicationContext(), downloadId);
+                if(downloadIds != null && downloadIds.length > 0) {
+                    mTaskManager.pauseTask(getApplicationContext(), downloadIds[0]);
                 }
                 break;
             }
             case DownloadConstant.ACTION_DELETE: {
-                Log.e(TAG, "onHandleIntent: delete" + downloadId);
-                if(downloadId != -1) {
-                    DownloadTaskManager.deleteTask(getApplicationContext(), downloadId);
+                if(downloadIds != null && downloadIds.length > 0) {
+                    mTaskManager.deleteTask(getApplicationContext(), downloadIds[0]);
                 }
+                break;
+            }
+            case DownloadConstant.ACTION_PAUSE_ALL: {
+                mTaskManager.pauseAllTask(getApplicationContext(), downloadIds);
+                break;
+            }
+            case DownloadConstant.ACTION_START_ALL: {
+                mTaskManager.startAllTask(getApplicationContext(), downloadIds);
+                break;
+            }
+            case DownloadConstant.ACTION_DELETE_ALL: {
+                mTaskManager.deleteAllTask(getApplicationContext(), downloadIds);
                 break;
             }
         }
